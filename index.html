@@ -1,0 +1,885 @@
+<html><head><base href=".">
+<meta charset="UTF-8">
+<title>Simulador de Propagaci&#xf3;n de Fuego 2D Mejorado</title>
+<style>
+  body { 
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: #1a1a1a;
+    color: white;
+    font-family: Arial, sans-serif;
+  }
+  
+  .controls {
+    padding: 20px;
+    background: #333;
+    border-radius: 8px;
+    margin: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    position: relative;
+  }
+  
+  .control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .terrain-tools {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 5px;
+    margin: 10px 0;
+  }
+  
+  canvas {
+    border: 2px solid #444;
+    margin: 20px;
+    box-shadow: 0 0 20px rgba(255, 68, 0, 0.3);
+  }
+  
+  button {
+    background: #ff4400;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+  
+  button:hover {
+    background: #ff5500;
+    transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(255, 68, 0, 0.4);
+  }
+
+  button.selected {
+    background: #ff7700;
+    box-shadow: 0 0 10px rgba(255, 119, 0, 0.5);
+  }
+  
+  .tooltip {
+    position: absolute;
+    background: rgba(0,0,0,0.8);
+    color: white;
+    padding: 8px;
+    border-radius: 4px;
+    display: none;
+    pointer-events: none;
+    z-index: 1000;
+  }
+
+  .parameter-display {
+    background: #444;
+    padding: 10px;
+    border-radius: 4px;
+    margin-top: 10px;
+    text-align: center;
+  }
+
+  input[type="range"] {
+    width: 200px;
+    margin: 10px 0;
+  }
+
+  label {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+  }
+
+  #windArrow {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 60px;
+    height: 60px;
+    transition: transform 0.3s ease;
+  }
+  
+  .ash {
+    background-color: #444444 !important;
+    opacity: 0.7;
+  }
+  
+  .metrics-panel {
+    background: #333;
+    padding: 20px;
+    border-radius: 8px;
+    margin: 20px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+
+  .metric {
+    background: #444;
+    padding: 10px;
+    border-radius: 4px;
+    text-align: center;
+  }
+
+  .evacuate-button {
+    background: #ff0000;
+    font-size: 1.2em;
+    margin: 10px 0;
+  }
+
+  .house {
+    position: relative;
+  }
+
+  .house::after {
+    content: '🏠';
+    font-size: 1.2em;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+  
+  .documentation {
+    margin: 20px; 
+    max-width: 800px; 
+    background: #333; 
+    padding: 20px; 
+    border-radius: 8px;
+  }
+</style>
+</head>
+<body>
+  <h1>Simulador de Propagaci&#xf3;n de Fuego 2D</h1>
+  
+  <div class="controls">
+    <div class="control-group">
+      <button onclick="toggleSimulation()" id="fireButton">Iniciar Simulaci&#xf3;n</button>
+      <button onclick="reset()">Reiniciar</button>
+      
+      <div class="terrain-tools">
+        <button onclick="setTerrainType(&apos;fire&apos;)" id="fireToolBtn">&#x1f525; Foco</button>
+        <button onclick="setTerrainType(&apos;lowFlora&apos;)" id="lowFloraBtn">&#x1f331; Flora Baja</button>
+        <button onclick="setTerrainType(&apos;medFlora&apos;)" id="medFloraBtn">&#x1f33f; Flora Media</button>
+        <button onclick="setTerrainType(&apos;highFlora&apos;)" id="highFloraBtn">&#x1f333; Flora Alta</button>
+        <button onclick="setTerrainType(&apos;rock&apos;)" id="rockBtn">&#x1f5ff; Rocas</button>
+        <button onclick="setTerrainType(&apos;water&apos;)" id="waterBtn">&#x1f4a7; Agua</button>
+        <button onclick="setTerrainType(&apos;firebreak&apos;)" id="firebreakBtn">&#x1f6a7; Cortafuegos</button>
+        <button onclick="setTerrainType(&apos;clear&apos;)" id="clearBtn">&#x274c; Borrar</button>
+        <button onclick="setTerrainType(&apos;house&apos;)" id="houseBtn">&#x1f3e0; Casa</button>
+      </div>
+    </div>
+    
+    <div class="control-group">
+      <label>
+        Velocidad del viento:
+        <input type="range" min="0" max="10" value="5" id="windSpeed">
+        <div class="parameter-display" id="speedDisplay">5</div>
+      </label>
+    </div>
+    
+    <div class="control-group">
+      <label>
+        Direcci&#xf3;n del viento:
+        <input type="range" min="0" max="360" value="0" id="windDirection">
+        <div class="parameter-display" id="directionDisplay">0&#xb0;</div>
+      </label>
+    </div>
+    
+    <div class="control-group">
+      <label>
+        Tama&#xf1;o del pincel:
+        <input type="range" min="1" max="50" value="1" id="brushSize">
+        <div class="parameter-display" id="brushDisplay">1</div>
+      </label>
+    </div>
+    
+    <div class="control-group">
+      <label>
+        Temperatura:
+        <input type="range" min="0" max="10" value="5" id="temperature">
+        <div class="parameter-display" id="tempDisplay">5</div>
+      </label>
+    </div>
+    
+    <div class="control-group">
+      <label>
+        Humedad:
+        <input type="range" min="0" max="10" value="5" id="humidity"> 
+        <div class="parameter-display" id="humidityDisplay">5</div>
+      </label>
+    </div>
+    
+    <div class="control-group">
+      <label>
+        Velocidad de simulaci&#xf3;n:
+        <input type="range" min="1" max="10" value="5" id="simSpeed">
+        <div class="parameter-display" id="simSpeedDisplay">5</div>
+      </label>
+    </div>
+    
+    <div class="control-group">
+      <label>
+        Tama&#xf1;o de cuadr&#xed;cula:
+        <input type="range" min="2" max="50" value="20" id="gridSizeInput">
+        <div class="parameter-display" id="gridSizeDisplay">20</div>
+      </label>
+    </div>
+
+    <div class="control-group">
+      <label>
+        Personas por casa:
+        <input type="range" min="1" max="10" value="4" id="peoplePerHouse">
+        <div class="parameter-display" id="peoplePerHouseDisplay">4</div>
+      </label>
+    </div>
+
+    <button class="evacuate-button" onclick="orderEvacuation()" id="evacuateBtn">
+      &#x26a0;&#xfe0f; Ordenar Evacuaci&#xf3;n
+    </button>
+
+    <svg id="windArrow" viewBox="0 0 24 24">
+      <path d="M12 2L8 8h8L12 2zM12 22V7" stroke="white" stroke-width="2" fill="white"/>
+    </svg>
+  </div>
+
+  <div class="metrics-panel">
+    <div class="metric">
+      Casas evacuadas: <span id="evacuatedCount">0</span>
+    </div>
+    <div class="metric">
+      Casas quemadas: <span id="burnedCount">0</span>
+    </div>
+    <div class="metric">
+      Personas evacuadas: <span id="peopleEvacuatedCount">0</span>
+    </div>
+    <div class="metric">
+      V&#xed;ctimas: <span id="casualtyCount">0</span>
+    </div>
+    <div class="metric">
+      Tiempo simulaci&#xf3;n: <span id="simTime">0</span>s
+    </div>
+  </div>
+
+  <canvas id="canvas" width="800" height="600"></canvas>
+  <div class="tooltip" id="tooltip"></div>
+
+<script>const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const tooltip = document.getElementById('tooltip');
+const windSpeedInput = document.getElementById('windSpeed');
+const windDirectionInput = document.getElementById('windDirection');
+const speedDisplay = document.getElementById('speedDisplay');
+const directionDisplay = document.getElementById('directionDisplay');
+const windArrow = document.getElementById('windArrow');
+const brushSizeInput = document.getElementById('brushSize');
+const brushDisplay = document.getElementById('brushDisplay');
+const temperatureInput = document.getElementById('temperature');
+const humidityInput = document.getElementById('humidity');
+const tempDisplay = document.getElementById('tempDisplay');
+const humidityDisplay = document.getElementById('humidityDisplay');
+const simSpeedInput = document.getElementById('simSpeed');
+const simSpeedDisplay = document.getElementById('simSpeedDisplay');
+const gridSizeInput = document.getElementById('gridSizeInput');
+const gridSizeDisplay = document.getElementById('gridSizeDisplay');
+const peoplePerHouseInput = document.getElementById('peoplePerHouse');
+const peoplePerHouseDisplay = document.getElementById('peoplePerHouseDisplay');
+const TERRAIN_TYPES = {
+  EMPTY: 0,
+  FIRE: 1,
+  LOW_FLORA: 2,
+  MED_FLORA: 3,
+  HIGH_FLORA: 4,
+  ROCK: 5,
+  WATER: 6,
+  FIREBREAK: 7,
+  ASH: 8,
+  HOUSE: 9
+};
+let currentTerrainType = TERRAIN_TYPES.LOW_FLORA;
+let terrain = [];
+let fire = [];
+let fireIntensities = [];
+let simulationInterval = null;
+let gridSize = 20;
+let cols = Math.floor(canvas.width / gridSize);
+let rows = Math.floor(canvas.height / gridSize);
+let isDragging = false;
+let brushSize = 1;
+let simulationSpeed = 100;
+let isPaused = false;
+let houses = [];
+let evacuationOrdered = false;
+let evacuatedHouses = 0;
+let burnedHouses = 0;
+let simulationTime = 0;
+let peoplePerHouse = 4;
+let peopleEvacuated = 0;
+let casualties = 0;
+function initializeGrids() {
+  const cols = Math.floor(canvas.width / gridSize);
+  const rows = Math.floor(canvas.height / gridSize);
+  terrain = Array(rows).fill().map(() => Array(cols).fill(TERRAIN_TYPES.EMPTY));
+  fire = Array(rows).fill().map(() => Array(cols).fill(0));
+  fireIntensities = Array(rows).fill().map(() => Array(cols).fill(0));
+  houses = [];
+  evacuationOrdered = false;
+  evacuatedHouses = 0;
+  burnedHouses = 0;
+  simulationTime = 0;
+  peopleEvacuated = 0;
+  casualties = 0;
+  document.getElementById('peopleEvacuatedCount').textContent = '0';
+  document.getElementById('casualtyCount').textContent = '0';
+}
+function getTerrainColor(type, fireIntensity) {
+  if (fireIntensity > 0) {
+    const intensity = fireIntensity / 10;
+    return `rgb(255, ${Math.floor(128 * (1 - intensity))}, 0)`;
+  }
+  switch (type) {
+    case TERRAIN_TYPES.FIRE:
+      return '#ff4400';
+    case TERRAIN_TYPES.LOW_FLORA:
+      return '#90EE90';
+    case TERRAIN_TYPES.MED_FLORA:
+      return '#228B22';
+    case TERRAIN_TYPES.HIGH_FLORA:
+      return '#006400';
+    case TERRAIN_TYPES.ROCK:
+      return '#808080';
+    case TERRAIN_TYPES.WATER:
+      return '#4169E1';
+    case TERRAIN_TYPES.FIREBREAK:
+      return '#8B4513';
+    case TERRAIN_TYPES.ASH:
+      return '#444444';
+    case TERRAIN_TYPES.HOUSE:
+      return '#8B4513';
+    default:
+      return '#333333';
+  }
+}
+function drawCell(x, y) {
+  if (!terrain[y] || terrain[y][x] === undefined) return;
+  const terrainType = terrain[y][x];
+  const fireIntensity = fireIntensities[y][x];
+  ctx.fillStyle = getTerrainColor(terrainType, fireIntensity);
+  if (fireIntensity > 0) {
+    ctx.shadowColor = 'rgba(255, 68, 0, 0.5)';
+    ctx.shadowBlur = 10;
+  } else {
+    ctx.shadowBlur = 0;
+  }
+  ctx.fillRect(x * gridSize, y * gridSize, gridSize, gridSize);
+  ctx.strokeStyle = '#444';
+  ctx.strokeRect(x * gridSize, y * gridSize, gridSize, gridSize);
+}
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      drawCell(x, y);
+    }
+  }
+}
+function updateWindArrow() {
+  const direction = parseInt(windDirectionInput.value);
+  windArrow.style.transform = `rotate(${direction - 90}deg)`;
+  windArrow.style.opacity = (windSpeedInput.value / 10).toString();
+}
+function setTerrainType(type) {
+  document.querySelectorAll('.terrain-tools button').forEach(btn => btn.classList.remove('selected'));
+  switch (type) {
+    case 'fire':
+      currentTerrainType = TERRAIN_TYPES.FIRE;
+      document.getElementById('fireToolBtn').classList.add('selected');
+      break;
+    case 'lowFlora':
+      currentTerrainType = TERRAIN_TYPES.LOW_FLORA;
+      document.getElementById('lowFloraBtn').classList.add('selected');
+      break;
+    case 'medFlora':
+      currentTerrainType = TERRAIN_TYPES.MED_FLORA;
+      document.getElementById('medFloraBtn').classList.add('selected');
+      break;
+    case 'highFlora':
+      currentTerrainType = TERRAIN_TYPES.HIGH_FLORA;
+      document.getElementById('highFloraBtn').classList.add('selected');
+      break;
+    case 'rock':
+      currentTerrainType = TERRAIN_TYPES.ROCK;
+      document.getElementById('rockBtn').classList.add('selected');
+      break;
+    case 'water':
+      currentTerrainType = TERRAIN_TYPES.WATER;
+      document.getElementById('waterBtn').classList.add('selected');
+      break;
+    case 'firebreak':
+      currentTerrainType = TERRAIN_TYPES.FIREBREAK;
+      document.getElementById('firebreakBtn').classList.add('selected');
+      break;
+    case 'clear':
+      currentTerrainType = TERRAIN_TYPES.EMPTY;
+      document.getElementById('clearBtn').classList.add('selected');
+      break;
+    case 'house':
+      currentTerrainType = TERRAIN_TYPES.HOUSE;
+      document.getElementById('houseBtn').classList.add('selected');
+      break;
+  }
+}
+function startFire() {
+  if (simulationInterval) {
+    clearInterval(simulationInterval);
+  }
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      if (terrain[y][x] === TERRAIN_TYPES.FIRE) {
+        fire[y][x] = 1;
+        fireIntensities[y][x] = 10;
+      }
+    }
+  }
+  const btn = document.getElementById('fireButton');
+  btn.textContent = "Pausar";
+  isPaused = false;
+  simulationInterval = setInterval(() => {
+    if (!isPaused) {
+      updateFire();
+    }
+  }, simulationSpeed);
+}
+function getFlammabilityFactor(terrainType) {
+  switch (terrainType) {
+    case TERRAIN_TYPES.LOW_FLORA:
+      return 0.6;
+    case TERRAIN_TYPES.MED_FLORA:
+      return 0.8;
+    case TERRAIN_TYPES.HIGH_FLORA:
+      return 1.0;
+    case TERRAIN_TYPES.ROCK:
+      return 0;
+    case TERRAIN_TYPES.WATER:
+      return 0;
+    case TERRAIN_TYPES.FIREBREAK:
+      return 0;
+    case TERRAIN_TYPES.EMPTY:
+      return 0;
+    default:
+      return 0;
+  }
+}
+function updateFire() {
+  simulationTime += simulationSpeed / 1000;
+  document.getElementById('simTime').textContent = Math.floor(simulationTime);
+  const windSpeed = windSpeedInput.value / 10;
+  const windDirection = (windDirectionInput.value - 90) * Math.PI / 180;
+  const newFire = JSON.parse(JSON.stringify(fire));
+  const newIntensities = JSON.parse(JSON.stringify(fireIntensities));
+  let hasActiveFire = false;
+  const temperature = temperatureInput.value / 10;
+  const humidity = humidityInput.value / 10;
+  let environmentalModifier = 1.0;
+  if (temperature < 0.5 && humidity > 0.5) {
+    environmentalModifier = 0.3;
+  } else if (temperature < 0.5 && humidity < 0.5) {
+    environmentalModifier = 0.6;
+  } else if (temperature > 0.5 && humidity > 0.5) {
+    environmentalModifier = 1.0;
+  } else if (temperature > 0.5 && humidity < 0.5) {
+    environmentalModifier = 2.0;
+  }
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      if (fire[y][x]) {
+        if (terrain[y][x] === TERRAIN_TYPES.EMPTY) {
+          newFire[y][x] = 0;
+          newIntensities[y][x] = 0;
+          terrain[y][x] = TERRAIN_TYPES.ASH;
+          continue;
+        }
+        let spreadRadius = 1;
+        if (terrain[y][x] === TERRAIN_TYPES.HOUSE || terrain[y][x] === TERRAIN_TYPES.ASH) {
+          for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+              const newY = y + dy;
+              const newX = x + dx;
+              if (newY >= 0 && newY < rows && newX >= 0 && newX < cols) {
+                if (terrain[newY][newX] === TERRAIN_TYPES.HOUSE && !fire[newY][newX]) {
+                  newFire[newY][newX] = 1;
+                  newIntensities[newY][newX] = Math.min(10, fireIntensities[y][x] + Math.random() * 2);
+                }
+              }
+            }
+          }
+        }
+        if (terrain[y][x] !== TERRAIN_TYPES.HOUSE) {
+          if (gridSize < 10) {
+            if (terrain[y][x] === TERRAIN_TYPES.MED_FLORA) {
+              spreadRadius = 1;
+            } else if (terrain[y][x] === TERRAIN_TYPES.HIGH_FLORA) {
+              spreadRadius = 2;
+            }
+          } else {
+            if (terrain[y][x] === TERRAIN_TYPES.MED_FLORA) {
+              spreadRadius = 2;
+            } else if (terrain[y][x] === TERRAIN_TYPES.HIGH_FLORA) {
+              spreadRadius = 4;
+            }
+          }
+        }
+        for (let dy = -spreadRadius; dy <= spreadRadius; dy++) {
+          for (let dx = -spreadRadius; dx <= spreadRadius; dx++) {
+            if (Math.abs(dx) + Math.abs(dy) <= spreadRadius) {
+              const newY = y + dy;
+              const newX = x + dx;
+              if (newY >= 0 && newY < rows && newX >= 0 && newX < cols) {
+                const targetTerrainType = terrain[newY][newX];
+                if (targetTerrainType === TERRAIN_TYPES.ROCK || targetTerrainType === TERRAIN_TYPES.WATER || targetTerrainType === TERRAIN_TYPES.FIREBREAK) {
+                  continue;
+                }
+                if (targetTerrainType !== TERRAIN_TYPES.EMPTY) {
+                  const flammabilityFactor = getFlammabilityFactor(targetTerrainType);
+                  const angle = Math.atan2(dy, dx);
+                  const windEffect = Math.cos(windDirection - angle) * windSpeed;
+                  const propagationChance = (0.2 * flammabilityFactor + windEffect * 0.1) * environmentalModifier;
+                  if (Math.random() < propagationChance && !fire[newY][newX]) {
+                    newFire[newY][newX] = 1;
+                    newIntensities[newY][newX] = Math.min(10, fireIntensities[y][x] + Math.random() * 2);
+                  }
+                }
+              }
+            }
+          }
+        }
+        newIntensities[y][x] = Math.max(0, fireIntensities[y][x] - 0.2);
+        if (newIntensities[y][x] === 0) {
+          newFire[y][x] = 0;
+          terrain[y][x] = TERRAIN_TYPES.ASH;
+        } else {
+          hasActiveFire = true;
+        }
+      }
+    }
+  }
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      if (terrain[y][x] === TERRAIN_TYPES.HOUSE) {
+        if (fire[y][x]) {
+          let burningNeighbors = 0;
+          for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+              const newY = y + dy;
+              const newX = x + dx;
+              if (newY >= 0 && newY < rows && newX >= 0 && newX < cols) {
+                if (fire[newY][newX] && terrain[newY][newX] === TERRAIN_TYPES.HOUSE) {
+                  burningNeighbors++;
+                }
+              }
+            }
+          }
+          if (Math.random() < 0.2 + burningNeighbors * 0.1) {
+            terrain[y][x] = TERRAIN_TYPES.ASH;
+            burnedHouses++;
+            if (!evacuationOrdered) {
+              casualties += peoplePerHouse;
+            }
+          }
+        } else if (!evacuationOrdered) {
+          let fireNearby = false;
+          for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+              const newY = y + dy;
+              const newX = x + dx;
+              if (newY >= 0 && newY < rows && newX >= 0 && newX < cols) {
+                if (fire[newY][newX]) {
+                  fireNearby = true;
+                  const flammabilityFactor = 0.6;
+                  const angle = Math.atan2(dy, dx);
+                  const windEffect = Math.cos(windDirection - angle) * windSpeed;
+                  const propagationChance = (0.2 * flammabilityFactor + windEffect * 0.1) * environmentalModifier;
+                  if (Math.random() < propagationChance) {
+                    newFire[y][x] = 1;
+                    newIntensities[y][x] = Math.min(10, fireIntensities[newY][newX] + Math.random() * 2);
+                    casualties += peoplePerHouse;
+                    break;
+                  }
+                }
+              }
+            }
+            if (fireNearby) break;
+          }
+        } else if (evacuationOrdered) {}
+      }
+    }
+  }
+  if (!hasActiveFire) {
+    clearInterval(simulationInterval);
+    simulationInterval = null;
+  }
+  fire = newFire;
+  fireIntensities = newIntensities;
+  updateHouses();
+  draw();
+}
+function reset() {
+  if (simulationInterval) {
+    clearInterval(simulationInterval);
+    simulationInterval = null;
+  }
+  isPaused = false;
+  const btn = document.getElementById('fireButton');
+  btn.textContent = "Iniciar Simulación";
+  evacuationOrdered = false;
+  evacuatedHouses = 0;
+  burnedHouses = 0;
+  simulationTime = 0;
+  document.getElementById('evacuateBtn').disabled = false;
+  document.getElementById('evacuatedCount').textContent = '0';
+  document.getElementById('burnedCount').textContent = '0';
+  document.getElementById('simTime').textContent = '0';
+  initializeGrids();
+  draw();
+}
+function getMousePos(evt) {
+  const rect = canvas.getBoundingClientRect();
+  const x = Math.floor((evt.clientX - rect.left) / gridSize);
+  const y = Math.floor((evt.clientY - rect.top) / gridSize);
+  if (x >= -25 && x < cols + 25 && y >= -25 && y < rows + 25) {
+    return {
+      x,
+      y
+    };
+  }
+  return null;
+}
+function toggleSimulation() {
+  if (!simulationInterval) {
+    startFire();
+  } else {
+    isPaused = !isPaused;
+    const btn = document.getElementById('fireButton');
+    btn.textContent = isPaused ? "Continuar" : "Pausar";
+  }
+}
+function orderEvacuation() {
+  evacuationOrdered = true;
+  document.getElementById('evacuateBtn').disabled = true;
+}
+function updateHouses() {
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      if (terrain[y][x] === TERRAIN_TYPES.HOUSE) {
+        if (fire[y][x]) {
+          let burningNeighbors = 0;
+          for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+              const newY = y + dy;
+              const newX = x + dx;
+              if (newY >= 0 && newY < rows && newX >= 0 && newX < cols) {
+                if (fire[newY][newX] && terrain[newY][newX] === TERRAIN_TYPES.HOUSE) {
+                  burningNeighbors++;
+                }
+              }
+            }
+          }
+          if (Math.random() < 0.2 + burningNeighbors * 0.1) {
+            terrain[y][x] = TERRAIN_TYPES.ASH;
+            burnedHouses++;
+            if (!evacuationOrdered) {
+              casualties += peoplePerHouse;
+            }
+          }
+        } else if (evacuationOrdered) {
+          let fireNearby = false;
+          let evacuationResistance = Math.random();
+          for (let dy = -3; dy <= 3; dy++) {
+            for (let dx = -3; dx <= 3; dx++) {
+              if (y + dy >= 0 && y + dy < rows && x + dx >= 0 && x + dx < cols) {
+                if (fire[y + dy][x + dx]) {
+                  fireNearby = true;
+                  break;
+                }
+              }
+            }
+          }
+          if (fireNearby && evacuationResistance < 0.3) {
+            terrain[y][x] = TERRAIN_TYPES.EMPTY;
+            evacuatedHouses++;
+            peopleEvacuated += peoplePerHouse;
+          } else if (fireNearby) {
+            if (Math.random() < 0.4) {
+              terrain[y][x] = TERRAIN_TYPES.ASH;
+              burnedHouses++;
+              casualties += peoplePerHouse;
+            }
+          }
+        }
+      }
+    }
+  }
+  document.getElementById('evacuatedCount').textContent = evacuatedHouses;
+  document.getElementById('burnedCount').textContent = burnedHouses;
+  document.getElementById('peopleEvacuatedCount').textContent = peopleEvacuated;
+  document.getElementById('casualtyCount').textContent = casualties;
+}
+canvas.addEventListener('mousedown', evt => {
+  isDragging = true;
+  const pos = getMousePos(evt);
+  if (!pos) return;
+  const size = brushSize;
+  for (let dy = -Math.floor(size / 2); dy <= Math.floor(size / 2); dy++) {
+    for (let dx = -Math.floor(size / 2); dx <= Math.floor(size / 2); dx++) {
+      const newY = pos.y + dy;
+      const newX = pos.x + dx;
+      if (newY >= 0 && newY < rows && newX >= 0 && newX < cols) {
+        terrain[newY][newX] = currentTerrainType;
+      }
+    }
+  }
+  draw();
+});
+canvas.addEventListener('mousemove', evt => {
+  const pos = getMousePos(evt);
+  if (!pos) return;
+  tooltip.style.display = 'block';
+  tooltip.style.left = evt.clientX + 10 + 'px';
+  tooltip.style.top = evt.clientY + 10 + 'px';
+  if (isDragging) {
+    const size = brushSize;
+    for (let dy = -Math.floor(size / 2); dy <= Math.floor(size / 2); dy++) {
+      for (let dx = -Math.floor(size / 2); dx <= Math.floor(size / 2); dx++) {
+        const newY = pos.y + dy;
+        const newX = pos.x + dx;
+        if (newY >= 0 && newY < rows && newX >= 0 && newX < cols) {
+          terrain[newY][newX] = currentTerrainType;
+        }
+      }
+    }
+    draw();
+  }
+  if (terrain[pos.y] && terrain[pos.y][pos.x] !== undefined) {
+    tooltip.textContent = `Terreno: ${Object.keys(TERRAIN_TYPES)[terrain[pos.y][pos.x]]}`;
+  }
+});
+canvas.addEventListener('mouseout', () => {
+  tooltip.style.display = 'none';
+  isDragging = false;
+});
+canvas.addEventListener('mouseup', () => {
+  isDragging = false;
+});
+windSpeedInput.addEventListener('input', e => {
+  speedDisplay.textContent = e.target.value;
+  updateWindArrow();
+});
+windDirectionInput.addEventListener('input', e => {
+  directionDisplay.textContent = `${e.target.value}°`;
+  updateWindArrow();
+});
+brushSizeInput.addEventListener('input', e => {
+  brushSize = parseInt(e.target.value);
+  brushDisplay.textContent = brushSize;
+});
+temperatureInput.addEventListener('input', e => {
+  tempDisplay.textContent = e.target.value;
+});
+humidityInput.addEventListener('input', e => {
+  humidityDisplay.textContent = e.target.value;
+});
+simSpeedInput.addEventListener('input', e => {
+  const speed = parseInt(e.target.value);
+  simSpeedDisplay.textContent = speed;
+  simulationSpeed = 500 - speed * 40;
+  if (simulationInterval) {
+    clearInterval(simulationInterval);
+    simulationInterval = setInterval(() => {
+      if (!isPaused) {
+        updateFire();
+      }
+    }, simulationSpeed);
+  }
+});
+gridSizeInput.addEventListener('input', e => {
+  gridSize = parseInt(e.target.value);
+  cols = Math.floor(canvas.width / gridSize);
+  rows = Math.floor(canvas.height / gridSize);
+  gridSizeDisplay.textContent = gridSize;
+  reset();
+});
+peoplePerHouseInput.addEventListener('input', e => {
+  peoplePerHouse = parseInt(e.target.value);
+  peoplePerHouseDisplay.textContent = peoplePerHouse;
+});
+initializeGrids();
+draw();
+updateWindArrow();</script>
+
+<div class="documentation" style="margin: 20px; max-width: 800px; background: #333; padding: 20px; border-radius: 8px;">
+  <h2>Manual de Usuario - Simulador de Propagaci&#xf3;n de Incendios 2D</h2>
+  
+  <h3>Descripci&#xf3;n General</h3>
+  <p>Este simulador permite modelar y visualizar la propagaci&#xf3;n de incendios forestales en un entorno 2D, considerando m&#xfa;ltiples variables ambientales y elementos del terreno. Es una herramienta educativa y de planificaci&#xf3;n que ayuda a comprender el comportamiento del fuego y practicar estrategias de evacuaci&#xf3;n.</p>
+
+  <h3>Caracter&#xed;sticas Principales</h3>
+  <ul>
+    <li>M&#xfa;ltiples tipos de terreno y vegetaci&#xf3;n con diferentes comportamientos ante el fuego</li>
+    <li>Simulaci&#xf3;n de viento con direcci&#xf3;n y velocidad variables</li>
+    <li>Efectos de temperatura y humedad en la propagaci&#xf3;n</li>
+    <li>Sistema de evacuaci&#xf3;n de habitantes</li>
+    <li>M&#xe9;tricas en tiempo real</li>
+  </ul>
+
+  <h3>Tipos de Terreno</h3>
+  <ul>
+    <li>&#x1f525; Foco de Incendio: Punto inicial del fuego</li>
+    <li>&#x1f331; Flora Baja: Vegetaci&#xf3;n de baja altura, propagaci&#xf3;n moderada</li>
+    <li>&#x1f33f; Flora Media: Vegetaci&#xf3;n mediana, propagaci&#xf3;n elevada</li>
+    <li>&#x1f333; Flora Alta: &#xc1;rboles y vegetaci&#xf3;n densa, m&#xe1;xima propagaci&#xf3;n</li>
+    <li>&#x1f5ff; Rocas: Barrera natural, no combustible</li>
+    <li>&#x1f4a7; Agua: Barrera natural, no combustible</li>
+    <li>&#x1f6a7; Cortafuegos: Barrera artificial, no combustible</li>
+    <li>&#x1f3e0; Casas: Estructuras habitadas, combustibles</li>
+  </ul>
+
+  <h3>Variables Ambientales</h3>
+  <ul>
+    <li>Viento: Afecta direcci&#xf3;n y velocidad de propagaci&#xf3;n (0-10)</li>
+    <li>Temperatura: Influye en la velocidad de propagaci&#xf3;n (0-10)</li>
+    <li>Humedad: Afecta la facilidad de ignici&#xf3;n (0-10)</li>
+  </ul>
+
+  <h3>Sistema de Evacuaci&#xf3;n</h3>
+  <p>Las casas pueden ser evacuadas usando el bot&#xf3;n &quot;Ordenar Evacuaci&#xf3;n&quot;. Los habitantes tienen diferentes probabilidades de evacuar basadas en la cercan&#xed;a del fuego.</p>
+
+  <h3>Ventajas</h3>
+  <ul>
+    <li>Interface intuitiva y f&#xe1;cil de usar</li>
+    <li>M&#xfa;ltiples variables configurables</li>
+    <li>Visualizaci&#xf3;n clara del progreso del incendio</li>
+    <li>M&#xe9;tricas detalladas en tiempo real</li>
+  </ul>
+
+  <h3>Limitaciones</h3>
+  <ul>
+    <li>Modelo simplificado 2D</li>
+    <li>No considera topograf&#xed;a del terreno</li>
+    <li>Comportamiento simplificado del viento</li>
+    <li>No simula recursos de extinci&#xf3;n</li>
+  </ul>
+
+  <h3>Recomendaciones de Uso</h3>
+  <ol>
+    <li>Comience con simulaciones simples para familiarizarse con los controles</li>
+    <li>Experimente con diferentes configuraciones de viento y clima</li>
+    <li>Pruebe diferentes estrategias de colocaci&#xf3;n de cortafuegos</li>
+    <li>Compare resultados con y sin evacuaci&#xf3;n temprana</li>
+  </ol>
+</div>
+
+</body></html>
